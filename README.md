@@ -14,17 +14,6 @@ python train.py --data_dir "your data dir" --data enron --prefix tgrank-listwise
 
 Make sure to adjust the '--data_dir' path to where your datasets are stored.
 
-## Requirements
-
-```
-python >= 3.8
-torch  == 2.0.1
-scikit-learn == 1.2.2
-pandas == 2.0.1
-numpy == 1.24.3
-tqdm == 4.63.0
-```
-
 ## Dataset Access
 
 - Reddit - http://snap.stanford.edu/jodie/reddit.csv
@@ -46,3 +35,15 @@ These following repositories represent the primary baseline models used in our e
 - TATKC - https://github.com/ZJUT-DBLab/TATKC
 
 - FreeDyG - https://github.com/Tianxzzz/FreeDyG
+
+## Requirements
+
+```
+python >= 3.8
+torch  == 2.0.1
+scikit-learn == 1.2.2
+pandas == 2.0.1
+numpy == 1.24.3
+tqdm == 4.63.0
+```
+
