@@ -8,7 +8,7 @@ Code is written in Python and the proposed model is implemented using **Pytorch*
 
 To start training, use the following command:
 ```
-python train.py --data_dir "your data dir" --data enron --prefix tgrank-listwise --verbose 1
+python train.py --data_dir "your data dir" --data enron --prefix bandrank --verbose 1
 ```
 
 Make sure to adjust the '--data_dir' path to where your datasets are stored.
