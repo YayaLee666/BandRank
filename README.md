@@ -1,9 +1,8 @@
 # BandRank
 
+This repository contains implementation for paper **"Ranking on Dynamic Graphs: An Effective and Robust Band-Pass Disentangled Approach"**.
 
 ## Experiment Reproduce
-
-This repository contains implementation for paper **"Ranking on Dynamic Graphs: An Effective and Robust Band-Pass Disentangled Approach"**.
 
 Code is written in Python and the proposed model is implemented using **Pytorch**.
 
