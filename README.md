@@ -2,14 +2,16 @@
 
 
 ## Dataset Access
- 
-Reddit - http://snap.stanford.edu/jodie/reddit.csv
 
-Wikipedia - http://snap.stanford.edu/jodie/wikipedia.csv
+\begin{itemize}
+\item Reddit - http://snap.stanford.edu/jodie/reddit.csv
 
-MOOC - http://snap.stanford.edu/jodie/mooc.csv
+\item Wikipedia - http://snap.stanford.edu/jodie/wikipedia.csv
 
-LastFM - http://snap.stanford.edu/jodie/lastfm.csv
+\item MOOC - http://snap.stanford.edu/jodie/mooc.csv
+
+\item LastFM - http://snap.stanford.edu/jodie/lastfm.csv
+\end{itemize}
 
 Preprocessed Enron and UCI datasets are taken from - https://github.com/snap-stanford/CAW
 
