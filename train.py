@@ -54,12 +54,12 @@ def calculate_harmonic_term(h, batch):
             pos_score = torch.dot(pos_embedding, pos_embedding)
             neg_score = torch.dot(pos_embedding, neg_embedding)
             
-            bpr_loss = -F.logsigmoid(pos_score - neg_score)
+            hr_loss = -F.logsigmoid(pos_score - neg_score)
         else:
             print("something wrong")
-            bpr_loss = torch.tensor(0.0, device=h.device)
+            hr_loss = torch.tensor(0.0, device=h.device)
 
-        harmonic_term += bpr_loss
+        harmonic_term += hr_loss
 
     return harmonic_term / num_subgraphs
 
