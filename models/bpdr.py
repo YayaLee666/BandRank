@@ -16,16 +16,13 @@ class FreMLP(nn.Module):
         self.sparsity_threshold = sparsity_threshold
         self.scale = 0.02
 
-        # alpha_k parameters for each frequency band
         self.alpha_k = nn.ParameterList([nn.Parameter(torch.ones(1)) for _ in range(N)])
 
-        # r1, i1, rb1, ib1 parameters for frequency transformation
         self.r1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(input_dim, output_dim)) for _ in range(N)])
         self.i1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(input_dim, output_dim)) for _ in range(N)])
         self.rb1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(output_dim)) for _ in range(N)])
         self.ib1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(output_dim)) for _ in range(N)])
 
-        # Linear layer to combine output
         self.linear = nn.Linear(output_dim * N, output_dim)
 
     def calculate_Qk(self, k, energy_sum):
