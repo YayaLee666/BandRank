@@ -44,25 +44,23 @@ def calculate_harmonic_term(h, batch):
     for i in range(num_subgraphs):
         subgraph_embeddings = h[batch.ptr[i]:batch.ptr[i + 1]]
     
-        pos_embedding = subgraph_embeddings[1] 
-        neg_indices = [j for j in range(subgraph_embeddings.shape[0]) if j != 1]
-        
-        if len(neg_indices) > 0:
-            random_neg_index = neg_indices[torch.randint(len(neg_indices), (1,)).item()]
-            neg_embedding = subgraph_embeddings[random_neg_index]
-            
-            pos_score = torch.dot(pos_embedding, pos_embedding)
-            neg_score = torch.dot(pos_embedding, neg_embedding)
-            
-            hr_loss = -F.logsigmoid(pos_score - neg_score)
-        else:
-            print("something wrong")
-            hr_loss = torch.tensor(0.0, device=h.device)
 
-        harmonic_term += hr_loss
+        pos_embedding = subgraph_embeddings[1]
+        distances = torch.norm(subgraph_embeddings - pos_embedding, dim=1)
+        distances[1] = float('inf')
+
+        neg_index = torch.argmin(distances)
+        neg_embedding = subgraph_embeddings[neg_index]
+        
+        pos_score = torch.dot(pos_embedding, pos_embedding)
+        neg_score = torch.dot(pos_embedding, neg_embedding)
+        
+        bpr_loss = -F.logsigmoid(pos_score - neg_score)
+        
+        harmonic_term += bpr_loss
 
     return harmonic_term / num_subgraphs
-
+    
     
 def training_epoch(net, optimizer, train_data, full_data, node_features, edge_features, train_neighbor_finder,
                             batch_size, num_temporal_hops, n_neighbors, num_samples, verbose=False, coalesce_edges_and_time=False, train_randomize_timestamps=False):
@@ -181,6 +179,7 @@ def parse_arguments():
                         help='Whether to not use identity label to distinguish source from destinations. Value used to set label diffusion')
     parser.add_argument('--gpu', type=int, default=1, help='Specify which GPU to use')
     parser.add_argument('--num_samples', type=int, default=100, help='Number of samples for Monte Carlo Dropout')
+    parser.add_argument('--N', type=int, default=3, help='Number of frequency bands')
     try:
         args = parser.parse_args()
     except:
