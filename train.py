@@ -48,6 +48,7 @@ def calculate_harmonic_term(h, batch):
         pos_embedding = subgraph_embeddings[1]
         distances = torch.norm(subgraph_embeddings - pos_embedding, dim=1)
         distances[1] = float('inf')
+        distances[0] = float('inf')
 
         neg_index = torch.argmin(distances)
         neg_embedding = subgraph_embeddings[neg_index]
