@@ -179,7 +179,7 @@ def parse_arguments():
                         help='Whether to not use identity label to distinguish source from destinations. Value used to set label diffusion')
     parser.add_argument('--gpu', type=int, default=1, help='Specify which GPU to use')
     parser.add_argument('--num_samples', type=int, default=100, help='Number of samples for Monte Carlo Dropout')
-    parser.add_argument('--N', type=int, default=3, help='Number of frequency bands')
+
     try:
         args = parser.parse_args()
     except:
