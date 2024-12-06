@@ -8,102 +8,94 @@ from torch.fft import fft, ifft
 
 
 class FreMLP(nn.Module):
-    def __init__(self, input_dim, output_dim, sparsity_threshold=0.01):
+    def __init__(self, input_dim, output_dim, N=3, sparsity_threshold=0.01):
         super(FreMLP, self).__init__()
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.N = N 
         self.sparsity_threshold = sparsity_threshold
         self.scale = 0.02
 
-        # Low frequency parameters
-        self.r1_low = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.i1_low = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.rb1_low = nn.Parameter(self.scale * torch.randn(output_dim))
-        self.ib1_low = nn.Parameter(self.scale * torch.randn(output_dim))
+        # alpha_k parameters for each frequency band
+        self.alpha_k = nn.ParameterList([nn.Parameter(torch.ones(1)) for _ in range(N)])
 
-        # Mid frequency parameters
-        self.r1_mid = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.i1_mid = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.rb1_mid = nn.Parameter(self.scale * torch.randn(output_dim))
-        self.ib1_mid = nn.Parameter(self.scale * torch.randn(output_dim))
+        # r1, i1, rb1, ib1 parameters for frequency transformation
+        self.r1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(input_dim, output_dim)) for _ in range(N)])
+        self.i1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(input_dim, output_dim)) for _ in range(N)])
+        self.rb1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(output_dim)) for _ in range(N)])
+        self.ib1 = nn.ParameterList([nn.Parameter(self.scale * torch.randn(output_dim)) for _ in range(N)])
 
-        # High frequency parameters
-        self.r1_high = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.i1_high = nn.Parameter(self.scale * torch.randn(input_dim, output_dim))
-        self.rb1_high = nn.Parameter(self.scale * torch.randn(output_dim))
-        self.ib1_high = nn.Parameter(self.scale * torch.randn(output_dim))
+        # Linear layer to combine output
+        self.linear = nn.Linear(output_dim * N, output_dim)
 
-        self.linear = nn.Linear(output_dim * 3, output_dim)
+    def calculate_Qk(self, k, energy_sum):
+        factor = (2 * (k + 1) - 1) / (2 * self.N)
+        Q_k = self.alpha_k[k] * factor * energy_sum
+        return Q_k
 
     def create_band_pass_filter(self, x_fft):
         B, L = x_fft.shape
 
         energy = torch.abs(x_fft).pow(2).sum(dim=-1)
-        min_energy = energy.min(dim=0, keepdim=True)[0]
-        max_energy = energy.max(dim=0, keepdim=True)[0]
-        threshold_param1 = (2 * min_energy + max_energy) / 3
-        threshold_param2 = (min_energy + 2 * max_energy) / 3
+        energy_sum = energy.sum()
+        
 
-        low_freq_mask = (energy <= threshold_param1).float()
-        mid_freq_mask = ((energy > threshold_param1) & (energy <= threshold_param2)).float()
-        high_freq_mask = (energy > threshold_param2).float()
+        Q_k_list = [self.calculate_Qk(k, energy_sum) for k in range(self.N)]
 
-        return low_freq_mask, mid_freq_mask, high_freq_mask
+        masks = []
+        for k in range(self.N):
+            Q_k = Q_k_list[k]
+
+            b_k = (1 / self.alpha_k[k]) * energy_sum / (self.N * 2)
+
+            distances = torch.abs(energy - Q_k)
+            mask = (energy >= (Q_k - b_k)) & (energy <= (Q_k + b_k))
+
+            masks.append(mask)
+
+        return masks
 
     def forward(self, x):
         if not torch.is_complex(x):
             x = torch.view_as_complex(torch.stack((x.float(), torch.zeros_like(x).float()), dim=-1))
 
-
         x_fft = fft(x)
-        low_freq_mask, mid_freq_mask, high_freq_mask = self.create_band_pass_filter(x_fft)
-        low_freq_mask = low_freq_mask.unsqueeze(-1).expand_as(x_fft)
-        mid_freq_mask = mid_freq_mask.unsqueeze(-1).expand_as(x_fft)
-        high_freq_mask = high_freq_mask.unsqueeze(-1).expand_as(x_fft)
+        
+        freq_masks = self.create_band_pass_filter(x_fft)
+        freq_ffts = [x_fft * mask.unsqueeze(-1).expand_as(x_fft) for mask in freq_masks]
 
-        low_freq_fft = x_fft * low_freq_mask
-        mid_freq_fft = x_fft * mid_freq_mask
-        high_freq_fft = x_fft * high_freq_mask
+        outputs = []
+        for k in range(self.N):
+            freq_fft = freq_ffts[k]
 
-        o_real_fft_low = torch.einsum('...n,nd->...d', low_freq_fft.real, self.r1_low) - \
-                         torch.einsum('...n,nd->...d', low_freq_fft.imag, self.i1_low) + self.rb1_low
-        o_imag_fft_low = torch.einsum('...n,nd->...d', low_freq_fft.imag, self.r1_low) + \
-                         torch.einsum('...n,nd->...d', low_freq_fft.real, self.i1_low) + self.ib1_low
-        y_fft_low = torch.stack([F.relu(o_real_fft_low), F.relu(o_imag_fft_low)], dim=-1)
-        y_fft_low = F.softshrink(y_fft_low, lambd=self.sparsity_threshold)
-        y_fft_low = torch.view_as_complex(y_fft_low)
+            o_real = torch.einsum('...n,nd->...d', freq_fft.real, self.r1[k]) - \
+                     torch.einsum('...n,nd->...d', freq_fft.imag, self.i1[k]) + self.rb1[k]
+            o_imag = torch.einsum('...n,nd->...d', freq_fft.imag, self.r1[k]) + \
+                     torch.einsum('...n,nd->...d', freq_fft.real, self.i1[k]) + self.ib1[k]
 
-        o_real_fft_mid = torch.einsum('...n,nd->...d', mid_freq_fft.real, self.r1_mid) - \
-                         torch.einsum('...n,nd->...d', mid_freq_fft.imag, self.i1_mid) + self.rb1_mid
-        o_imag_fft_mid = torch.einsum('...n,nd->...d', mid_freq_fft.imag, self.r1_mid) + \
-                         torch.einsum('...n,nd->...d', mid_freq_fft.real, self.i1_mid) + self.ib1_mid
-        y_fft_mid = torch.stack([F.relu(o_real_fft_mid), F.relu(o_imag_fft_mid)], dim=-1)
-        y_fft_mid = F.softshrink(y_fft_mid, lambd=self.sparsity_threshold)
-        y_fft_mid = torch.view_as_complex(y_fft_mid)
+            y_fft = torch.stack([F.relu(o_real), F.relu(o_imag)], dim=-1)
+            y_fft = F.softshrink(y_fft, lambd=self.sparsity_threshold)
+            y_fft = torch.view_as_complex(y_fft)
 
-        o_real_fft_high = torch.einsum('...n,nd->...d', high_freq_fft.real, self.r1_high) - \
-                          torch.einsum('...n,nd->...d', high_freq_fft.imag, self.i1_high) + self.rb1_high
-        o_imag_fft_high = torch.einsum('...n,nd->...d', high_freq_fft.imag, self.r1_high) + \
-                          torch.einsum('...n,nd->...d', high_freq_fft.real, self.i1_high) + self.ib1_high
-        y_fft_high = torch.stack([F.relu(o_real_fft_high), F.relu(o_imag_fft_high)], dim=-1)
-        y_fft_high = F.softshrink(y_fft_high, lambd=self.sparsity_threshold)
-        y_fft_high = torch.view_as_complex(y_fft_high)
+            outputs.append(y_fft)
 
-        y_fft_concat = torch.cat([y_fft_low, y_fft_mid, y_fft_high], dim=-1)
+        y_fft_concat = torch.cat(outputs, dim=-1)
         y = ifft(y_fft_concat)
         y = self.linear(y.real)
 
         return y
 
 
+
 class BPDRLayer(nn.Module):
-    def __init__(self, emb_dim, edge_attr_size, edge_time_emb_size, reduce):
+    def __init__(self, emb_dim, edge_attr_size, edge_time_emb_size, reduce, N=3):
         super(BPDRLayer, self).__init__()
         self.emb_dim = emb_dim
         self.edge_attr_size = edge_attr_size
         self.edge_time_emb_size = edge_time_emb_size
         self.reduce = reduce
-        self.msg_function = FreMLP(self.emb_dim + self.edge_attr_size + self.edge_time_emb_size, self.emb_dim)
+        self.N = N
+        self.msg_function = FreMLP(self.emb_dim + self.edge_attr_size + self.edge_time_emb_size, self.emb_dim, N=N)
         self.combine_linear = nn.Linear(2 * self.emb_dim, self.emb_dim, bias=True)
         self.linear = nn.Linear(self.emb_dim, self.emb_dim, bias=True)
         self.layer_norm = nn.LayerNorm(self.emb_dim, elementwise_affine=True, eps=1e-5)
@@ -136,6 +128,7 @@ class BPDRLayer(nn.Module):
         out = F.dropout(F.relu(self.layer_norm(out)), p=0.1, training=self.training)
 
         return out
+
 
 class BPDRNet(nn.Module):
     def __init__(self, emb_dim, edge_attr_size, edge_time_emb_dim=128, num_layers=3, use_fourier_features=True, use_id_label=True, device=None):
