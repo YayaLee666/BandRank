@@ -1,6 +1,6 @@
 # BandRank
 
-This repository contains implementation for paper **"Ranking on Dynamic Graphs: An Effective and Robust Band-Pass Disentangled Approach"**.
+This repository contains implementation for paper [**"Ranking on Dynamic Graphs: An Effective and Robust Band-Pass Disentangled Approach"**](https://dl.acm.org/doi/10.1145/3696410.3714943).
 
 ## Experiment Reproduce
 
